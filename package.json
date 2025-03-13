@@ -1,0 +1,7 @@
+{
+  "devDependencies": {
+    "resolve-url-loader": "^5.0.0",
+    "sass": "^1.85.1",
+    "sass-loader": "^16.0.5"
+  }
+}
