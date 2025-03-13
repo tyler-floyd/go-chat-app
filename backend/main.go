@@ -5,63 +5,38 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gorilla/websocket"
+	"github.com/TutorialEdge/realtime-chat-go-react/pkg/websocket"
 )
 
-// Upgrader is used to upgrade the HTTP connection to a WebSocket connection
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-
-	// CheckOrigin is used to check the origin of the WebSocket connection
-	// We are allowing all origins
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
-// reader is used to read messages from the WebSocket connection (endpoint)
-func reader(conn *websocket.Conn) {
-	for {
-		// Read message from browser
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		fmt.Println(string(p))
-
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println(err)
-			return
-		}
-	}
-}
-
 // define ws endpoint
-func serveWs(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.Host)
-
+func serveWs(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("WebSocket Endpoint Hit")
 	// upgrade this connection to a WebSocket connection
-	ws, err := upgrader.Upgrade(w, r, nil)
+	conn, err := websocket.Upgrade(w, r)
 	if err != nil {
-		log.Println(err)
+		fmt.Fprintf(w, "%+V\n", err)
 	}
 
-	// listen indefinitely for new messages coming from our client
-	reader(ws)
+	client := &websocket.Client{
+		Conn: conn,
+		Pool: pool,
+	}
+
+	pool.Register <- client
+	client.Read()
 }
 
 func setupRoutes() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Simple Server")
-	})
+	pool := websocket.NewPool()
+	go pool.Start()
 
-	//map our ws endpoint to the serveWs function
-	http.HandleFunc("/ws", serveWs)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(pool, w, r)
+	})
 }
 
 func main() {
-	fmt.Println("Chat App v0.01")
+	fmt.Println("Distributed Chat App v0.01")
 	setupRoutes()
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
